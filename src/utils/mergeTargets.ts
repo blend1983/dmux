@@ -167,7 +167,11 @@ export function resolveMergeTarget(pane: DmuxPane): MergeTargetResolution | null
     };
   }
 
-  return null;
+  // No usable target in the stored chain (missing worktreePath, or the target
+  // branch is no longer checked out where expected). Fall back to the project
+  // root's current branch instead of hard-failing, so a stale or hand-edited
+  // mergeTargetChain can never leave a pane unmergeable.
+  return getDefaultMergeTarget(pane);
 }
 
 export function buildFallbackMergeMessage(

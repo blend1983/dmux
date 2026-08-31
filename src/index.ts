@@ -1489,6 +1489,15 @@ class Dmux {
     return;
   }
 
+  if (
+    process.argv.slice(2).some(
+      (arg) => arg === '--version' || arg === '-v' || arg === 'version'
+    )
+  ) {
+    console.log(`dmux v${packageJson.version}`);
+    process.exit(0);
+  }
+
   const remotePaneActionArg = getArgValue('--remote-pane-action');
   if (remotePaneActionArg) {
     process.exit(await handleRemotePaneActionCli(remotePaneActionArg));

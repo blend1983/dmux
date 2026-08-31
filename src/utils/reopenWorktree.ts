@@ -10,7 +10,7 @@ import {
 import { SIDEBAR_WIDTH, recalculateAndApplyLayout } from './layoutManager.js';
 import type { DmuxPane, DmuxConfig } from '../types.js';
 import { atomicWriteJsonSync } from './atomicWrite.js';
-import { buildWorktreePaneTitle } from './paneTitle.js';
+import { DMUX_BOOTSTRAP_PANE_TITLE_PREFIX } from './paneBootstrapConfig.js';
 import {
   AGENT_IDS,
   buildAgentResumeOrLaunchCommand,
@@ -119,7 +119,6 @@ export async function reopenWorktree(
 
   if (isFirstContentPane) {
     paneInfo = setupSidebarLayout(controlPaneId, projectRoot);
-    await new Promise((resolve) => setTimeout(resolve, 300));
   } else {
     // Subsequent panes - always split horizontally
     const dmuxPaneIds = existingPanes.map(p => p.paneId);
@@ -127,17 +126,19 @@ export async function reopenWorktree(
     paneInfo = splitPane({ targetPane });
   }
 
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  // Set pane title
+  // Mark the pane as dmux-owned IMMEDIATELY after creation (before the settle
+  // delay below) so the shell-pane detector never sees it untitled during the
+  // config-save race. Mirrors createPane's guard — without this, a reopened
+  // pane can be re-adopted as a plain shell pane (no worktreePath /
+  // mergeTargetChain). The real worktree title is applied later by
+  // enforcePaneTitles once the pane is persisted to config.
   try {
-    const paneTitle = projectRoot === sessionProjectRoot
-      ? slug
-      : buildWorktreePaneTitle(slug, projectRoot, paneProjectName);
-    await tmuxService.setPaneTitle(paneInfo, paneTitle);
+    await tmuxService.setPaneTitle(paneInfo, `${DMUX_BOOTSTRAP_PANE_TITLE_PREFIX}${slug}`);
   } catch {
     // Ignore if setting title fails
   }
+
+  await new Promise((resolve) => setTimeout(resolve, isFirstContentPane ? 800 : 500));
 
   // Apply optimal layout
   if (controlPaneId) {
@@ -181,6 +182,42 @@ export async function reopenWorktree(
   const permissionMode = metadata?.permissionMode ?? settings.permissionMode;
   const goalMode = metadata?.goalMode ?? settings.enableGoalModeByDefault ?? false;
   const dmuxPaneId = `dmux-${Date.now()}`;
+
+  // Build + persist the pane object BEFORE launching the agent so the pane is
+  // tracked (by paneId) while the agent TUI overwrites the pane title during
+  // startup. The dmux-bootstrap: guard above only protects the split→save
+  // window; once opencode/claude replaces the title, the shell-pane detector
+  // would re-adopt the pane unless it is already in config.
+  const currentBranch = getCurrentBranch(worktreePath);
+  const newPane: DmuxPane = {
+    id: dmuxPaneId,
+    slug,
+    displayName: metadata?.displayName,
+    branchName: (metadata?.branchName || currentBranch) !== slug
+      ? (metadata?.branchName || currentBranch)
+      : undefined,
+    prompt: '(Reopened session)',
+    paneId: paneInfo,
+    projectRoot,
+    projectName: paneProjectName,
+    colorTheme: resolveProjectColorTheme(projectRoot, configSidebarProjects),
+    worktreePath,
+    agent,
+    permissionMode,
+    autopilot: settings.enableAutopilotByDefault ?? false,
+    goalMode,
+    mergeTargetChain: metadata?.mergeTargetChain,
+  };
+
+  try {
+    const configContent = fs.readFileSync(configPath, 'utf-8');
+    const config: DmuxConfig = JSON.parse(configContent);
+    config.panes = [...existingPanes, newPane];
+    config.lastUpdated = new Date().toISOString();
+    atomicWriteJsonSync(configPath, config);
+  } catch {
+    // Log but don't fail
+  }
 
   // Resume the agent session (or start interactive mode when no resume command is available).
   if (agent) {
@@ -240,44 +277,6 @@ export async function reopenWorktree(
 
   // Keep focus on the new pane
   await tmuxService.selectPane(paneInfo);
-
-  // Create the pane object
-  const currentBranch = getCurrentBranch(worktreePath);
-
-  const newPane: DmuxPane = {
-    id: dmuxPaneId,
-    slug,
-    displayName: metadata?.displayName,
-    branchName: (metadata?.branchName || currentBranch) !== slug
-      ? (metadata?.branchName || currentBranch)
-      : undefined,
-    prompt: '(Reopened session)',
-    paneId: paneInfo,
-    projectRoot,
-    projectName: paneProjectName,
-    colorTheme: resolveProjectColorTheme(projectRoot, configSidebarProjects),
-    worktreePath,
-    agent,
-    permissionMode,
-    autopilot: settings.enableAutopilotByDefault ?? false,
-    goalMode,
-    mergeTargetChain: metadata?.mergeTargetChain,
-  };
-
-  // Pre-save pane to config before destroying welcome pane (first content pane only),
-  // so loadPanes sees a pane in config and doesn't recreate the welcome pane.
-  if (isFirstContentPane) {
-    try {
-      const configContent = fs.readFileSync(configPath, 'utf-8');
-      const config: DmuxConfig = JSON.parse(configContent);
-
-      config.panes = [...existingPanes, newPane];
-      config.lastUpdated = new Date().toISOString();
-      atomicWriteJsonSync(configPath, config);
-    } catch {
-      // Log but don't fail
-    }
-  }
 
   // Always destroy welcome pane if one exists — shell panes can make isFirstContentPane
   // false even when no real content pane exists yet.

@@ -699,6 +699,8 @@ const DmuxApp: React.FC<DmuxAppProps> = ({
         }
       }
 
+      const prefixUpdates: Array<{ paneId: string; option: string; value: string }> = []
+
       for (const pane of panes) {
         const paneThemeName = getPaneColorTheme(
           pane,
@@ -719,7 +721,11 @@ const DmuxApp: React.FC<DmuxAppProps> = ({
         const activeBorderStyle = `fg=colour${getDmuxThemePalette(paneThemeName).activeBorder}`
 
         if (cachedPrefixes.get(pane.paneId) !== prefixValue) {
-          tmuxService.setPaneOptionSync(pane.paneId, '@dmux_title_prefix', prefixValue)
+          prefixUpdates.push({
+            paneId: pane.paneId,
+            option: '@dmux_title_prefix',
+            value: prefixValue,
+          })
           cachedPrefixes.set(pane.paneId, prefixValue)
         }
 
@@ -744,6 +750,10 @@ const DmuxApp: React.FC<DmuxAppProps> = ({
             activeBorderStyle
           )
         }
+      }
+
+      if (prefixUpdates.length > 0) {
+        tmuxService.setPaneOptionsSync(prefixUpdates)
       }
 
       if (controlPaneId && cachedActiveBorderStyles.get(controlPaneId) !== controlPaneActiveBorderStyle) {
@@ -780,7 +790,7 @@ const DmuxApp: React.FC<DmuxAppProps> = ({
         paneTitleSpinnerFrameRef.current + 1
       ) % PANE_TITLE_BUSY_FRAMES.length
       syncPaneTitlePrefixes()
-    }, 90)
+    }, 250)
 
     return () => {
       clearInterval(interval)

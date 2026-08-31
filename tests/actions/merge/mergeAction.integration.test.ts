@@ -27,6 +27,7 @@ vi.mock('../../../src/utils/mergeExecution.js', () => ({
 
 vi.mock('../../../src/utils/hooks.js', () => ({
   triggerHook: vi.fn(() => Promise.resolve()),
+  triggerHookSync: vi.fn(() => Promise.resolve({ success: true })),
 }));
 
 vi.mock('../../../src/utils/worktreeDiscovery.js', () => ({
@@ -131,7 +132,7 @@ describe('Merge Action Integration', () => {
 
     it('should trigger pre_merge hook on confirmation', async () => {
       const { validateMerge } = await import('../../../src/utils/mergeValidation.js');
-      const { triggerHook } = await import('../../../src/utils/hooks.js');
+      const { triggerHookSync } = await import('../../../src/utils/hooks.js');
 
       vi.mocked(validateMerge).mockReturnValue({
         canMerge: true,
@@ -143,9 +144,38 @@ describe('Merge Action Integration', () => {
 
       if (result.type === 'confirm' && result.onConfirm) {
         await result.onConfirm();
-        expect(triggerHook).toHaveBeenCalledWith('pre_merge', '/test/main', mockPane, {
-          DMUX_TARGET_BRANCH: 'main',
-        });
+        expect(triggerHookSync).toHaveBeenCalledWith(
+          'pre_merge',
+          '/test/main',
+          mockPane,
+          {
+            DMUX_TARGET_BRANCH: 'main',
+          },
+          180000
+        );
+      }
+    });
+
+    it('should abort the merge when the pre_merge hook fails', async () => {
+      const { validateMerge } = await import('../../../src/utils/mergeValidation.js');
+      const { triggerHookSync } = await import('../../../src/utils/hooks.js');
+
+      vi.mocked(validateMerge).mockReturnValue({
+        canMerge: true,
+        mainBranch: 'main',
+        issues: [],
+      });
+      vi.mocked(triggerHookSync).mockResolvedValueOnce({
+        success: false,
+        error: 'hook exploded',
+      });
+
+      const result = await mergePane(mockPane, mockContext);
+
+      if (result.type === 'confirm' && result.onConfirm) {
+        const confirmResult = await result.onConfirm();
+        expect(confirmResult.type).toBe('error');
+        expect(confirmResult.title).toBe('Pre-merge hook failed');
       }
     });
 

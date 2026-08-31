@@ -1308,6 +1308,29 @@ export class TmuxService {
   }
 
   /**
+   * Set multiple pane options in a single tmux invocation (batch).
+   * Reduces per-frame process spawns for the animated pane-title prefix.
+   */
+  setPaneOptionsSync(
+    entries: Array<{ paneId: string; option: string; value: string }>
+  ): void {
+    if (entries.length === 0) {
+      return;
+    }
+
+    const commands = entries.map(({ paneId, option, value }) => {
+      const escapedValue = value.replace(/'/g, `'\\''`);
+      return `set-option -p -t '${paneId}' ${option} '${escapedValue}'`;
+    });
+
+    try {
+      this.execute(`tmux ${commands.join(' \\; ')}`, { silent: true });
+    } catch (error) {
+      this.logger.warn(`Failed to set ${entries.length} pane option(s)`, 'TmuxService');
+    }
+  }
+
+  /**
    * Select layout by name (sync version for compatibility)
    * Note: Does NOT throw on error - logs warning and returns false instead
    * This prevents crashes during rapid resize events

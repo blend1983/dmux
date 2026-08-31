@@ -750,14 +750,32 @@ async function performWorktreeMerge(
   const { mergeMainIntoWorktree, mergeWorktreeIntoMain } = await import(
     '../../utils/mergeExecution.js'
   );
-  const { triggerHook } = await import('../../utils/hooks.js');
+  const { triggerHook, triggerHookSync } = await import('../../utils/hooks.js');
 
-  // Trigger pre_merge hook
-  await triggerHook('pre_merge', worktree.parentRepoPath, pane, {
-    DMUX_TARGET_BRANCH: mainBranch,
-    DMUX_WORKTREE_PATH: worktree.worktreePath,
-    DMUX_REPO_NAME: worktree.repoName,
-  });
+  // Trigger pre_merge hook (blocking gate — abort the merge if it fails)
+  const preMergeResult = await triggerHookSync(
+    'pre_merge',
+    worktree.parentRepoPath,
+    pane,
+    {
+      DMUX_TARGET_BRANCH: mainBranch,
+      DMUX_WORKTREE_PATH: worktree.worktreePath,
+      DMUX_REPO_NAME: worktree.repoName,
+    },
+    180000
+  );
+
+  if (!preMergeResult.success) {
+    return {
+      type: 'error' as const,
+      title: 'Pre-merge hook failed',
+      message:
+        preMergeResult.error ||
+        preMergeResult.output ||
+        'The pre_merge hook failed.',
+      dismissable: true,
+    };
+  }
 
   // Step 1: Merge main into worktree
   const step1 = mergeMainIntoWorktree(worktree.worktreePath, mainBranch);

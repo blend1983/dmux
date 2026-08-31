@@ -8,7 +8,7 @@
 import { execSync } from 'child_process';
 import type { DmuxPane } from '../../types.js';
 import type { ActionResult, ActionContext } from '../types.js';
-import { triggerHook } from '../../utils/hooks.js';
+import { triggerHookSync } from '../../utils/hooks.js';
 import { getPaneBranchName } from '../../utils/git.js';
 import { executeMerge } from '../merge/mergeExecution.js';
 import {
@@ -167,9 +167,26 @@ async function executeSingleRootMerge(
       confirmLabel: 'Merge',
       cancelLabel: 'Cancel',
       onConfirm: async () => {
-        await triggerHook('pre_merge', mergeTarget.targetRepoPath, pane, {
-          DMUX_TARGET_BRANCH: validation.mainBranch,
-        });
+        const preMergeResult = await triggerHookSync(
+          'pre_merge',
+          mergeTarget.targetRepoPath,
+          pane,
+          { DMUX_TARGET_BRANCH: validation.mainBranch },
+          180000
+        );
+
+        if (!preMergeResult.success) {
+          return {
+            type: 'error' as const,
+            title: 'Pre-merge hook failed',
+            message:
+              preMergeResult.error ||
+              preMergeResult.output ||
+              'The pre_merge hook failed.',
+            dismissable: true,
+          };
+        }
+
         return executeMerge(
           pane,
           activeContext,
