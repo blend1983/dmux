@@ -367,6 +367,7 @@ export async function recreateKilledPanes(
       const newPaneId = splitPane({
         cwd: restoreCwd,
         command: pane.type === 'shell' ? pane.shellCommand : undefined,
+        detached: true,
       });
 
       // Set pane title

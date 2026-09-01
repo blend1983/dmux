@@ -540,10 +540,15 @@ export class TmuxService {
     targetPane?: string;
     cwd?: string;
     command?: string;
+    detached?: boolean;
   } = {}): Promise<string> {
     return this.executeWithRetry(
       () => {
-        let cmd = 'tmux split-window -h -P -F \'#{pane_id}\'';
+        let cmd = 'tmux split-window';
+        if (options.detached) {
+          cmd += ' -d';
+        }
+        cmd += ' -h -P -F \'#{pane_id}\'';
 
         if (options.targetPane) {
           cmd += ` -t '${options.targetPane}'`;
@@ -1149,8 +1154,13 @@ export class TmuxService {
     targetPane?: string;
     cwd?: string;
     command?: string;
+    detached?: boolean;
   } = {}): string {
-    let cmd = 'tmux split-window -h -P -F \'#{pane_id}\'';
+    let cmd = 'tmux split-window';
+    if (options.detached) {
+      cmd += ' -d';
+    }
+    cmd += ' -h -P -F \'#{pane_id}\'';
 
     if (options.targetPane) {
       cmd += ` -t '${options.targetPane}'`;

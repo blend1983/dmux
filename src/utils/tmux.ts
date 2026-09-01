@@ -68,6 +68,7 @@ export const splitPane = (options: {
   targetPane?: string;
   cwd?: string;
   command?: string;
+  detached?: boolean;
 } = {}): string => {
   return TmuxService.getInstance().splitPaneSync(options);
 };
