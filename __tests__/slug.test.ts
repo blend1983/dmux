@@ -1,9 +1,13 @@
-import { afterEach, beforeEach, describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import {
   generateLocalSlugFromPrompt,
   generateSlug,
   normalizeSlugCandidate,
 } from '../src/utils/slug.js';
+
+vi.mock('../src/services/InferenceService.js', () => ({
+  generateInferenceText: vi.fn(() => Promise.reject(new Error('no inference provider configured'))),
+}));
 
 let originalOpenRouterApiKey: string | undefined;
 

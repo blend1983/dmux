@@ -2,6 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { normalizePaneContentForAnalysis, PaneAnalyzer } from '../src/services/PaneAnalyzer.js';
 import { LogService } from '../src/services/LogService.js';
 
+vi.mock('../src/utils/settingsManager.js', () => ({
+  SettingsManager: class {
+    getSettings() { return {}; }
+    getGlobalSettings() { return {}; }
+    getProjectSettings() { return {}; }
+  },
+}));
+
 describe('PaneAnalyzer content normalization', () => {
   it('keeps only the last 50 lines after trimming blank edges', () => {
     const content = [

@@ -4,6 +4,11 @@ vi.mock('../src/utils/paneCapture.js', () => ({
   capturePaneContent: vi.fn(() => 'captured from tmux'),
 }));
 
+vi.mock('../src/services/InferenceService.js', () => ({
+  generateInferenceText: vi.fn(() => Promise.reject(new Error('no inference provider configured'))),
+  hasConfiguredInferenceSync: vi.fn(() => false),
+}));
+
 import { PaneAnalyzer } from '../src/services/PaneAnalyzer.js';
 import { capturePaneContent } from '../src/utils/paneCapture.js';
 

@@ -6,6 +6,16 @@ import { PopupManager, type PopupManagerConfig } from '../src/services/PopupMana
 import type { AgentName } from '../src/utils/agentLaunch.js';
 import { SettingsManager } from '../src/utils/settingsManager.js';
 
+// Point $HOME-derived paths (e.g. ~/.dmux.global.json) at a clean dir so the
+// real global settings never leak into these tests.
+vi.mock('os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('os')>();
+  return {
+    ...actual,
+    homedir: () => '/tmp/dmux-test-clean-home',
+  };
+});
+
 const tempDirs: string[] = [];
 
 afterEach(() => {
